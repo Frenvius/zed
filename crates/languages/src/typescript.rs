@@ -4,7 +4,7 @@ use async_tar::Archive;
 use async_trait::async_trait;
 use collections::HashMap;
 use gpui::AsyncAppContext;
-use http::github::{build_tarball_url, GitHubLspBinaryVersion};
+use http::github::{GitHubLspBinaryVersion};
 use language::{LanguageServerName, LspAdapter, LspAdapterDelegate};
 use lsp::{CodeActionKind, LanguageServerBinary};
 use node_runtime::NodeRuntime;
@@ -19,6 +19,7 @@ use std::{
     path::{Path, PathBuf},
     sync::Arc,
 };
+use smol::process::Command;
 use task::{TaskTemplate, TaskTemplates, VariableName};
 use util::{fs::remove_matching, maybe, ResultExt};
 
@@ -391,7 +392,7 @@ impl LspAdapter for EsLintLspAdapter {
         delegate: &dyn LspAdapterDelegate,
     ) -> Result<LanguageServerBinary> {
         let version = version.downcast::<GitHubLspBinaryVersion>().unwrap();
-        let destination_path = container_dir.join(format!("vscode-eslint-{}", version.name));
+        let destination_path = container_dir.join("vscode-eslint-release");
         let server_path = destination_path.join(Self::SERVER_PATH);
 
         if fs::metadata(&server_path).await.is_err() {
@@ -411,13 +412,13 @@ impl LspAdapter for EsLintLspAdapter {
             let repo_root = destination_path.join("vscode-eslint");
             fs::rename(first.path(), &repo_root).await?;
 
-            self.node
-                .run_npm_subcommand(Some(&repo_root), "install", &[])
-                .await?;
+            let mut command = Command::new("cmd");
+            command.arg("/C").arg("npm install").current_dir(&repo_root);
+            command.output().await?;
 
-            self.node
-                .run_npm_subcommand(Some(&repo_root), "run-script", &["compile"])
-                .await?;
+            let mut command = Command::new("cmd");
+            command.arg("/C").arg("npm run-script compile").current_dir(&repo_root);
+            command.output().await?;
         }
 
         Ok(LanguageServerBinary {
