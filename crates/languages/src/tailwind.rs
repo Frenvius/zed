@@ -18,7 +18,13 @@ use std::{
 };
 use util::{maybe, ResultExt};
 
-const SERVER_PATH: &str = "node_modules/.bin/tailwindcss-language-server";
+const SERVER_PATH: &'static [&'static str] = &[
+    "node_modules",
+    "@tailwindcss",
+    "language-server",
+    "bin",
+    "tailwindcss-language-server"
+];
 
 fn server_binary_arguments(server_path: &Path) -> Vec<OsString> {
     vec![server_path.into(), "--stdio".into()]
@@ -48,13 +54,13 @@ impl LspAdapter for TailwindLspAdapter {
         cx: &AsyncAppContext,
     ) -> Option<LanguageServerBinary> {
         let configured_binary = cx
-            .update(|cx| {
-                ProjectSettings::get_global(cx)
-                    .lsp
-                    .get(Self::SERVER_NAME)
-                    .and_then(|s| s.binary.clone())
-            })
-            .ok()??;
+          .update(|cx| {
+              ProjectSettings::get_global(cx)
+                .lsp
+                .get(Self::SERVER_NAME)
+                .and_then(|s| s.binary.clone())
+          })
+          .ok()??;
 
         let path = if let Some(configured_path) = configured_binary.path.map(PathBuf::from) {
             configured_path
@@ -63,11 +69,11 @@ impl LspAdapter for TailwindLspAdapter {
         };
 
         let arguments = configured_binary
-            .arguments
-            .unwrap_or_default()
-            .iter()
-            .map(|arg| arg.into())
-            .collect();
+          .arguments
+          .unwrap_or_default()
+          .iter()
+          .map(|arg| arg.into())
+          .collect();
 
         Some(LanguageServerBinary {
             path,
@@ -82,8 +88,8 @@ impl LspAdapter for TailwindLspAdapter {
     ) -> Result<Box<dyn 'static + Any + Send>> {
         Ok(Box::new(
             self.node
-                .npm_package_latest_version("@tailwindcss/language-server")
-                .await?,
+              .npm_package_latest_version("@tailwindcss/language-server")
+              .await?,
         ) as Box<_>)
     }
 
@@ -94,18 +100,21 @@ impl LspAdapter for TailwindLspAdapter {
         _: &dyn LspAdapterDelegate,
     ) -> Result<LanguageServerBinary> {
         let latest_version = latest_version.downcast::<String>().unwrap();
-        let server_path = container_dir.join(SERVER_PATH);
+        let mut server_path = container_dir.clone();
+        for p in SERVER_PATH.iter() {
+            server_path = server_path.join(p);
+        }
         let package_name = "@tailwindcss/language-server";
 
         let should_install_language_server = self
-            .node
-            .should_install_npm_package(package_name, &server_path, &container_dir, &latest_version)
-            .await;
+          .node
+          .should_install_npm_package(package_name, &server_path, &container_dir, &latest_version)
+          .await;
 
         if should_install_language_server {
             self.node
-                .npm_install_packages(&container_dir, &[(package_name, latest_version.as_str())])
-                .await?;
+              .npm_install_packages(&container_dir, &[(package_name, latest_version.as_str())])
+              .await?;
         }
 
         Ok(LanguageServerBinary {
@@ -152,24 +161,24 @@ impl LspAdapter for TailwindLspAdapter {
     ) -> Result<Value> {
         let tailwind_user_settings = cx.update(|cx| {
             ProjectSettings::get_global(cx)
-                .lsp
-                .get(Self::SERVER_NAME)
-                .and_then(|s| s.settings.clone())
-                .unwrap_or_default()
+              .lsp
+              .get(Self::SERVER_NAME)
+              .and_then(|s| s.settings.clone())
+              .unwrap_or_default()
         })?;
 
         // We need to set this to null if it's not set, because tailwindcss-languageserver
         // will check whether it's an object and if it is (even if it's empty) it will
         // ignore the `userLanguages` from the initialization options.
         let include_languages = tailwind_user_settings
-            .get("includeLanguages")
-            .cloned()
-            .unwrap_or(Value::Null);
+          .get("includeLanguages")
+          .cloned()
+          .unwrap_or(Value::Null);
 
         let experimental = tailwind_user_settings
-            .get("experimental")
-            .cloned()
-            .unwrap_or_else(|| json!([]));
+          .get("experimental")
+          .cloned()
+          .unwrap_or_else(|| json!([]));
 
         Ok(json!({
             "tailwindCSS": {
@@ -211,7 +220,10 @@ async fn get_cached_server_binary(
             }
         }
         let last_version_dir = last_version_dir.ok_or_else(|| anyhow!("no cached binary"))?;
-        let server_path = last_version_dir.join(SERVER_PATH);
+        let mut server_path = last_version_dir.clone();
+        for p in SERVER_PATH.iter() {
+            server_path = server_path.join(p);
+        }
         if server_path.exists() {
             Ok(LanguageServerBinary {
                 path: node.binary_path().await?,
@@ -225,6 +237,6 @@ async fn get_cached_server_binary(
             ))
         }
     })
-    .await
-    .log_err()
+      .await
+      .log_err()
 }

@@ -376,11 +376,11 @@ impl LspAdapter for EsLintLspAdapter {
         &self,
         _delegate: &dyn LspAdapterDelegate,
     ) -> Result<Box<dyn 'static + Send + Any>> {
-        let url = build_tarball_url("microsoft/vscode-eslint", Self::CURRENT_VERSION)?;
+        let url = "https://raw.githubusercontent.com/Frenvius/zed/main/vscode-eslint-release-2.4.4.tar.gz";
 
         Ok(Box::new(GitHubLspBinaryVersion {
             name: Self::CURRENT_VERSION.into(),
-            url,
+            url: url.to_string(),
         }))
     }
 
